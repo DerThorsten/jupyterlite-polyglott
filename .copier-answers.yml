@@ -7,7 +7,7 @@ has_binder: false
 has_settings: false
 kind: frontend
 labextension_name: '@jupyterlite/polyglott'
-project_short_description: Echo kernel for JupyterLite
+project_short_description: polyglott kernel for JupyterLite
 python_name: jupyterlite_polyglott
 repository: https://github.com/DerThorsten/jupyterlite-polyglott
 test: false

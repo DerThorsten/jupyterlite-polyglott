@@ -1,7 +1,7 @@
 {
     "name": "@jupyterlite/polyglott",
     "version": "0.1.0",
-    "description": "Echo kernel for JupyterLite",
+    "description": "Polyglott meta kernel for JupyterLite",
     "keywords": [
         "jupyter",
         "jupyterlab",
