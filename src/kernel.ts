@@ -170,7 +170,7 @@ export class PolyglottKernel implements IKernel {
         sendMessage: sendMessage
       };
       console.log('Creating kernel with options', options);
-      let kernel = await factory(options);
+      const kernel = await factory(options);
 
       console.log('Created kernel, waiting for it to be ready', kernel);
       await kernel.ready;
@@ -243,7 +243,7 @@ export class PolyglottKernel implements IKernel {
 
     const [magic, kernelName] = firstLine.split(' ');
     console.log('magic', magic, 'kernelName', kernelName);
-    let kernel = await this.getKernelByName(kernelName);
+    const kernel = await this.getKernelByName(kernelName);
     if (!kernel) {
       this.publishExecuteError(
         {
