@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "jupyterlite_polyglott"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Framework :: Jupyter",
     "Framework :: Jupyter :: JupyterLab",
@@ -16,11 +16,11 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
 ]
@@ -37,8 +37,8 @@ artifacts = ["jupyterlite_polyglott/labextension"]
 exclude = [".github", "binder"]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"jupyterlite_polyglott/labextension" = "share/jupyter/labextensions/@jupyterlite/polyglott"
-"install.json" = "share/jupyter/labextensions/@jupyterlite/polyglott/install.json"
+"jupyterlite_polyglott/labextension" = "share/jupyter/labextensions/jupyterlite_polyglott"
+"install.json" = "share/jupyter/labextensions/jupyterlite_polyglott/install.json"
 
 [tool.hatch.build.hooks.version]
 path = "jupyterlite_polyglott/_version.py"

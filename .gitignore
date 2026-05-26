@@ -15,6 +15,9 @@ jupyterlite_polyglott/_version.py
 # Edit at https://www.gitignore.io/?templates=python
 
 ### Python ###
+# Virtual environments
+.venv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -119,15 +122,3 @@ dmypy.json
 
 # Yarn cache
 .yarn/
-
-# Jupyter Notebook
-[Uu]ntitled*
-
-# JupyterLite
-.jupyterlite.doit.db
-_output/
-
-
-# example / debug deployments and scripts
-wasm-kernels/
-create_deployment.sh
