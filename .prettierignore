@@ -3,5 +3,5 @@ node_modules
 **/lib
 **/package.json
 !/package.json
-jupyterlite_echo_kernel
+jupyterlite_polyglott
 .venv

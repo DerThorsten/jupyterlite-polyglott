@@ -74,7 +74,7 @@ pip uninstall jupyterlite-polyglott
 
 In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
 command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
-folder is located. Then you can remove the symlink named `@jupyterlite/echo-kernel` within that folder.
+folder is located. Then you can remove the symlink named `@jupyterlite/polyglott` within that folder.
 
 ### Packaging the extension
 

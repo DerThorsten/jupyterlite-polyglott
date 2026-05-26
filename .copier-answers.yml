@@ -6,9 +6,9 @@ author_name: JupyterLite Contributors
 has_binder: false
 has_settings: false
 kind: frontend
-labextension_name: '@jupyterlite/echo-kernel'
+labextension_name: '@jupyterlite/polyglott'
 project_short_description: Echo kernel for JupyterLite
-python_name: jupyterlite_echo_kernel
+python_name: jupyterlite_polyglott
 repository: https://github.com/DerThorsten/jupyterlite-polyglott
 test: false
 

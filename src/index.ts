@@ -16,7 +16,7 @@ import { PolyglottKernel } from './kernel';
  * A plugin to register the echo kernel.
  */
 const kernel: JupyterFrontEndPlugin<void> = {
-  id: '@jupyterlite/echo-kernel:kernel',
+  id: '@jupyterlite/polyglott:kernel',
   autoStart: true,
   requires: [IKernelSpecs],
   activate: (app: JupyterFrontEnd, kernelspecs: IKernelSpecs) => {
