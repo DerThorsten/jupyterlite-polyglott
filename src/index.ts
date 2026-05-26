@@ -1,0 +1,43 @@
+// Copyright (c) JupyterLite Contributors
+// Distributed under the terms of the Modified BSD License.
+
+import {
+  JupyterFrontEnd,
+  JupyterFrontEndPlugin
+} from '@jupyterlab/application';
+
+import type { IKernel } from '@jupyterlite/services';
+
+import { IKernelSpecs } from '@jupyterlite/services';
+
+import { PolyglottKernel } from './kernel';
+
+/**
+ * A plugin to register the echo kernel.
+ */
+const kernel: JupyterFrontEndPlugin<void> = {
+  id: '@jupyterlite/echo-kernel:kernel',
+  autoStart: true,
+  requires: [IKernelSpecs],
+  activate: (app: JupyterFrontEnd, kernelspecs: IKernelSpecs) => {
+    kernelspecs.register({
+      spec: {
+        name: 'echo',
+        display_name: 'Echo',
+        language: 'text',
+        argv: [],
+        resources: {
+          'logo-32x32': '',
+          'logo-64x64': ''
+        }
+      },
+      create: async (options: IKernel.IOptions): Promise<IKernel> => {
+        return new PolyglottKernel(options, kernelspecs);
+      }
+    });
+  }
+};
+
+const plugins: JupyterFrontEndPlugin<any>[] = [kernel];
+
+export default plugins;
