@@ -3,10 +3,10 @@ requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version>=0
 build-backend = "hatchling.build"
 
 [project]
-name = "jupyterlite_polyglott"
+name = "jupyterlite_echo_kernel"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 classifiers = [
     "Framework :: Jupyter",
     "Framework :: Jupyter :: JupyterLab",
@@ -16,11 +16,11 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
 ]
@@ -33,24 +33,24 @@ source = "nodejs"
 fields = ["description", "authors", "urls", "keywords"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["jupyterlite_polyglott/labextension"]
+artifacts = ["jupyterlite_echo_kernel/labextension"]
 exclude = [".github", "binder"]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"jupyterlite_polyglott/labextension" = "share/jupyter/labextensions/jupyterlite_polyglott"
-"install.json" = "share/jupyter/labextensions/jupyterlite_polyglott/install.json"
+"jupyterlite_echo_kernel/labextension" = "share/jupyter/labextensions/@jupyterlite/echo-kernel"
+"install.json" = "share/jupyter/labextensions/@jupyterlite/echo-kernel/install.json"
 
 [tool.hatch.build.hooks.version]
-path = "jupyterlite_polyglott/_version.py"
+path = "jupyterlite_echo_kernel/_version.py"
 
 [tool.hatch.build.hooks.jupyter-builder]
 dependencies = ["hatch-jupyter-builder>=0.5"]
 build-function = "hatch_jupyter_builder.npm_builder"
 ensured-targets = [
-    "jupyterlite_polyglott/labextension/static/style.js",
-    "jupyterlite_polyglott/labextension/package.json",
+    "jupyterlite_echo_kernel/labextension/static/style.js",
+    "jupyterlite_echo_kernel/labextension/package.json",
 ]
-skip-if-exists = ["jupyterlite_polyglott/labextension/static/style.js"]
+skip-if-exists = ["jupyterlite_echo_kernel/labextension/static/style.js"]
 
 [tool.hatch.build.hooks.jupyter-builder.build-kwargs]
 build_cmd = "build:prod"
@@ -60,7 +60,7 @@ npm = ["jlpm"]
 build_cmd = "install:extension"
 npm = ["jlpm"]
 source_dir = "src"
-build_dir = "jupyterlite_polyglott/labextension"
+build_dir = "jupyterlite_echo_kernel/labextension"
 
 [tool.jupyter-releaser.options]
 version_cmd = "hatch version"
