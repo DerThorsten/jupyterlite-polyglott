@@ -6,6 +6,12 @@ import {
 import type { IKernel } from '@jupyterlite/services';
 import { IKernelSpecs } from '@jupyterlite/services';
 import { PolyglottKernel } from './kernel';
+
+
+import logo32 from '../style/logo-32x32.png';
+import logo64 from '../style/logo-64x64.png';
+
+
 // import { LanguageSupport } from '@codemirror/language';
 /**
  * A plugin to register the echo kernel.
@@ -22,8 +28,8 @@ const kernel: JupyterFrontEndPlugin<void> = {
         language: 'text',
         argv: [],
         resources: {
-          'logo-32x32': '',
-          'logo-64x64': ''
+          'logo-32x32': logo32,
+          'logo-64x64': logo64,
         }
       },
       create: async (options: IKernel.IOptions): Promise<IKernel> => {

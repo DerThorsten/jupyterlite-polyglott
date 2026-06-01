@@ -155,18 +155,14 @@ export class PolyglottKernel implements IKernel {
             this.commIdToKernelName.set(commId, kernelName);
             console.log(`Registered comm_id ${commId} for kernel ${kernelName}`);
         }
-
-
-        // is this a kernel_info_reply message? if so, we store the content in the kernelInfos so we can use it later to determine which CodeMirror language extension to use for this kernel
-        if(msg.header.msg_type === 'kernel_info_reply') {
+        else if(msg.header.msg_type === 'kernel_info_reply') {
             const kernelInfoReplyMsg = msg as KernelMessage.IInfoReplyMsg;
             const content = kernelInfoReplyMsg.content as KernelMessage.IInfoReply;
             console.log('Received kernel_info_reply from kernel', kernelName, 'with content', content);
             kernelInfos[kernelName] = content;
         }
-
         // is this a complete_reply message? if so, we need to adjust the cursor position in the reply to account for the removed magic line
-        if(msg.header.msg_type === 'complete_reply') {
+        else if(msg.header.msg_type === 'complete_reply') {
             const complete_reply_msg = msg as KernelMessage.ICompleteReplyMsg;
             const content = complete_reply_msg.content as any;
             console.log('Received complete_reply from kernel', kernelName, 'with content', content, 'current cursor offset', this._completeReplyCurserOffset);
@@ -184,8 +180,7 @@ export class PolyglottKernel implements IKernel {
             this._completeReplyPromise.resolve();
             return;
         }
-
-        if(msg.header.msg_type === 'comm_info_reply') {
+        else if(msg.header.msg_type === 'comm_info_reply') {
             const commInfoReplyMsg = msg as KernelMessage.ICommInfoReplyMsg;
             const content = commInfoReplyMsg.content as  any;
             console.log('Received comm_info_reply from kernel', kernelName, 'with content', content);
@@ -203,7 +198,6 @@ export class PolyglottKernel implements IKernel {
                         ...replyContent.comms,
                     }
                 }
-
                 const reply_msg = KernelMessage.createMessage<KernelMessage.ICommInfoReplyMsg>({
                     msgType: 'comm_info_reply',
                     channel: 'shell',
@@ -215,7 +209,6 @@ export class PolyglottKernel implements IKernel {
                 this._commInfoReplyPromise.resolve();
                 return;
             }
-           
         }
 
         console.log(`Kernel ${kernelName} sending message ${msg.header.msg_type} with content`, msg.content);
@@ -614,7 +607,6 @@ export class PolyglottKernel implements IKernel {
         this._busy(msg);
 
         this._parent = msg;
-        console.log('stored parent message', this._parent);
 
         const msgType = msg.header.msg_type;
         switch (msgType) {
