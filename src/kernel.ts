@@ -185,6 +185,39 @@ export class PolyglottKernel implements IKernel {
             return;
         }
 
+        if(msg.header.msg_type === 'comm_info_reply') {
+            const commInfoReplyMsg = msg as KernelMessage.ICommInfoReplyMsg;
+            const content = commInfoReplyMsg.content as  any;
+            console.log('Received comm_info_reply from kernel', kernelName, 'with content', content);
+            this._commInfoRepliesContent.push(content);
+
+
+            if(this._commInfoRepliesContent.length === this.startedKernels.size) {
+                let aggregatedContent: KernelMessage.ICommInfoReply= {
+                    comms: {},
+                    status: 'ok',
+                };
+                for(const replyContent of this._commInfoRepliesContent) {
+                    aggregatedContent.comms = {
+                        ...aggregatedContent.comms,
+                        ...replyContent.comms,
+                    }
+                }
+
+                const reply_msg = KernelMessage.createMessage<KernelMessage.ICommInfoReplyMsg>({
+                    msgType: 'comm_info_reply',
+                    channel: 'shell',
+                    session: msg.header.session,
+                    parentHeader: msg.header as KernelMessage.IHeader<'comm_info_request'>,
+                    content: aggregatedContent,
+                });
+                this._sendMessage(reply_msg);
+                this._commInfoReplyPromise.resolve();
+                return;
+            }
+           
+        }
+
         console.log(`Kernel ${kernelName} sending message ${msg.header.msg_type} with content`, msg.content);
         this._sendMessage(msg);
 
@@ -486,6 +519,96 @@ export class PolyglottKernel implements IKernel {
         await kernel.handleMessage(msg);
     
     }
+    async commInfo(msg: KernelMessage.ICommInfoRequestMsg): Promise<void> {
+        console.log('Received comm_info_request', msg);
+        if(this.startedKernels.size === 0) {
+            // if we have no started kernels, we can just reply with an empty comm list
+            const reply_msg = KernelMessage.createMessage<KernelMessage.ICommInfoReplyMsg>({
+                msgType: 'comm_info_reply',
+                channel: 'shell',
+                session: msg.header.session,
+                parentHeader: msg.header as KernelMessage.IHeader<'comm_info_request'>,
+                content: {
+                    comms: {},
+                    status: 'ok',
+                },
+            });
+            this._sendMessage(reply_msg);
+            this._commInfoReplyPromise.resolve();
+        }
+        else{
+            // otherwise, we need to send a comm_info_request to each started kernel and aggregate the results
+            for(const [kernelName, kernel] of this.startedKernels) {
+                await kernel.handleMessage(msg);
+            }
+        }
+    }
+
+    // async history(msg: KernelMessage.IHistoryRequestMsg): Promise<void> {
+    // }
+
+    async inspect(msg: KernelMessage.IInspectRequestMsg): Promise<void> {
+        // get code and cursor position from msg
+        const code = (msg as KernelMessage.IInspectRequestMsg).content.code;
+        const cursor_pos = (msg as KernelMessage.IInspectRequestMsg).content.cursor_pos;
+        const kernelName = this.get_kernel_name_from_magic(code);
+
+        // modify the message to remove the magic line and adjust the cursor position accordingly
+        const newMsg = this._remove_kernel_magic(msg);
+        const codeWithoutMagic = (newMsg.content as any).code as string;
+        const magicSize = code.length - codeWithoutMagic.length;
+        const newCursorPos = cursor_pos - magicSize;
+        (newMsg.content as any).cursor_pos = newCursorPos;
+
+
+        const make_error_reply = (errorMsg: string): void => {
+            const reply_msg = KernelMessage.createMessage<KernelMessage.IInspectReplyMsg>({
+                msgType: 'inspect_reply',
+                channel: 'shell',
+                session: msg.header.session,
+                parentHeader: msg.header as KernelMessage.IHeader<'inspect_request'>,
+                content: {
+                    status: 'error',
+                    ename: 'InvalidMagic',
+                    evalue: errorMsg,
+                    traceback: [],
+                },
+            });
+            this._sendMessage(reply_msg);
+        };
+
+        if(!kernelName) {
+            make_error_reply(`No magic found in first line of code, expected  %%kernel <KERNEL_NAME>, but got: ${code.split('\n')[0].trim()}`);
+            return;
+        }
+
+        const kernel = await this.getKernelByName(kernelName);
+        if(!kernel) {
+            make_error_reply(`Kernel ${kernelName} not found`);
+            return;
+        }
+
+        // send message to kernel and wait for response
+        await kernel.handleMessage(newMsg);
+        return;
+    }
+
+
+
+    async commOpen(msg: KernelMessage.ICommOpenMsg): Promise<void> {
+        console.log('Received comm_open', msg);
+        const commId = msg.content.comm_id;
+        console.log(`Received comm_open with comm_id ${commId}`);
+    }
+
+    async commClose(msg: KernelMessage.ICommCloseMsg): Promise<void> {
+        console.log('Received comm_close', msg);
+        const commId = msg.content.comm_id;
+        console.log(`Received comm_close with comm_id ${commId}`);
+        this.commIdToKernelName.delete(commId);
+    }
+
+
 
     async handleMessage(msg: KernelMessage.IMessage): Promise<void> {
         this._busy(msg);
@@ -504,9 +627,9 @@ export class PolyglottKernel implements IKernel {
             // case 'input_reply':
             //     this.inputReply(msg.content as KernelMessage.IInputReplyMsg['content']);
             //     break;
-            // case 'inspect_request':
-            //     await this._inspect(msg);
-            //     break;
+            case 'inspect_request':
+                await this.inspect(msg as KernelMessage.IInspectRequestMsg);
+                break;
             case 'is_complete_request':
                 await this._isComplete(msg);
                 break;
@@ -519,15 +642,21 @@ export class PolyglottKernel implements IKernel {
             // case 'history_request':
             //     await this._historyRequest(msg);
             //     break;
-            // case 'comm_open':
-            //     await this.commOpen(msg as KernelMessage.ICommOpenMsg);
-            //     break;
+            case 'comm_open':
+                await this.commOpen(msg as KernelMessage.ICommOpenMsg);
+                break;
             case 'comm_msg':
                 await this.commMsg(msg as KernelMessage.ICommMsgMsg);
                 break;
-            // case 'comm_close':
-            //     await this.commClose(msg as KernelMessage.ICommCloseMsg);
-            //     break;
+            case 'comm_info_request':
+                // do we have a started kernel at all
+                    this._commInfoReplyPromise  = new PromiseDelegate<void>();
+                    await this.commInfo(msg as KernelMessage.ICommInfoRequestMsg);
+                    await this._commInfoReplyPromise.promise;
+                break;
+            case 'comm_close':
+                await this.commClose(msg as KernelMessage.ICommCloseMsg);
+                break;
             default:
                 console.warn(`Unhandled message type: ${msgType}`);
                 break;
@@ -570,5 +699,13 @@ export class PolyglottKernel implements IKernel {
     // we want only one complete request / reply at a time
     // so we store a promise we can await in the complete handler, and we resolve it when we receive the reply from the sub-kernel
     private _completeReplyPromise  = new PromiseDelegate<void>();
+
+    // the com info request is tricky since we need to aggregate the comm info from all sub-kernels and then send a single reply back to the client.
+    private _commInfoReplyPromise  = new PromiseDelegate<void>();
+    private _commInfoRepliesContent: KernelMessage.ICommInfoReply[] = [];
+
+    // history (for history requests)
+    // we store an array of tuples of the form [execution_count, timestamp, code]
+
 
 }
