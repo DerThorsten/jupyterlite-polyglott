@@ -4,9 +4,20 @@
 import { KernelMessage } from '@jupyterlab/services';
 import { IKernel } from '@jupyterlite/services';
 import { IKernelSpecs } from '@jupyterlite/services';
+import { PromiseDelegate } from '@lumino/coreutils';
 
 import type { ISignal } from '@lumino/signaling';
 import { Signal } from '@lumino/signaling';
+
+
+
+// a map from kernel-name (string)
+// to kernel-info-response 
+// we use this to determine which CodeMirror language extension to use for a given kernel
+export var kernelInfos: { [key: string]: KernelMessage.IInfoReply} = {};
+
+
+
 
 export class PolyglottKernel implements IKernel {
 
@@ -136,15 +147,48 @@ export class PolyglottKernel implements IKernel {
     // this method is given to the "sub-kernels" to send messages back to the server.
     // we intercept these messages here and then forward them to the server, but we could also do some processing here if needed.
     private _sendMessageDispatch(msg: KernelMessage.IMessage,  kernelName: string): void {
-        console.log(`Kernel ${kernelName} sending message`, msg);
 
-        // const content = msg.content as any;
-        // if(content && content.name === 'stdout' && content.text === 'Kernel successfuly started!\n') {
-        //     console.log('Skipping first message from kernel', kernelName);
-        //     return;
-        // }
+        // when the kernel asks to create a comm, we store the comm id to kernel name association in the commIdToKernelName map, so we can forward comm messages to the correct kernel
+        if(msg.header.msg_type === 'comm_open') {
+            const commOpenMsg = msg as KernelMessage.ICommOpenMsg;
+            const commId = commOpenMsg.content.comm_id;
+            this.commIdToKernelName.set(commId, kernelName);
+            console.log(`Registered comm_id ${commId} for kernel ${kernelName}`);
+        }
 
+
+        // is this a kernel_info_reply message? if so, we store the content in the kernelInfos so we can use it later to determine which CodeMirror language extension to use for this kernel
+        if(msg.header.msg_type === 'kernel_info_reply') {
+            const kernelInfoReplyMsg = msg as KernelMessage.IInfoReplyMsg;
+            const content = kernelInfoReplyMsg.content as KernelMessage.IInfoReply;
+            console.log('Received kernel_info_reply from kernel', kernelName, 'with content', content);
+            kernelInfos[kernelName] = content;
+        }
+
+        // is this a complete_reply message? if so, we need to adjust the cursor position in the reply to account for the removed magic line
+        if(msg.header.msg_type === 'complete_reply') {
+            const complete_reply_msg = msg as KernelMessage.ICompleteReplyMsg;
+            const content = complete_reply_msg.content as any;
+            console.log('Received complete_reply from kernel', kernelName, 'with content', content, 'current cursor offset', this._completeReplyCurserOffset);
+            if(this._completeReplyCurserOffset !== 0) {
+                const newCursorStart = content.cursor_start + this._completeReplyCurserOffset;
+                const newCursorEnd = content.cursor_end + this._completeReplyCurserOffset;
+                complete_reply_msg.content = {
+                    ...content,
+                    cursor_start: newCursorStart,
+                    cursor_end: newCursorEnd,
+                };
+                console.log('Adjusted complete_reply cursor positions to account for removed magic line, new content:', complete_reply_msg.content);
+            }
+            this._sendMessage(complete_reply_msg);
+            this._completeReplyPromise.resolve();
+            return;
+        }
+
+        console.log(`Kernel ${kernelName} sending message ${msg.header.msg_type} with content`, msg.content);
         this._sendMessage(msg);
+
+
     }
 
 
@@ -168,8 +212,22 @@ export class PolyglottKernel implements IKernel {
             console.log('Creating kernel with options', options);
             let kernel = await factory(options);
 
-            console.log('Created kernel, waiting for it to be ready', kernel);
+            // request a kernel_info from the kernel so it can send us the info reply which we use to determine which CodeMirror language extension to use for this kernel
+            const kernelInfoRequestMsg = KernelMessage.createMessage<KernelMessage.IInfoRequestMsg>({
+                msgType: 'kernel_info_request',
+                channel: 'shell',
+                session: this._parentHeader?.session ?? '',
+                parentHeader: this._parentHeader,
+                content: {},
+            });
+            
+
+            console.log('Created kernel !!!! waiting for it to be ready', kernel);
             await kernel.ready;
+
+            console.log('Kernel is ready, sending kernel_info_request message to kernel', kernelName, kernelInfoRequestMsg);
+            kernel.handleMessage(kernelInfoRequestMsg);
+ 
 
             console.log('Created kernel', kernel);
             this.startedKernels.set(kernelName, kernel);
@@ -201,8 +259,35 @@ export class PolyglottKernel implements IKernel {
     //     });
     //     this._sendMessage(message);
     // }
-    
 
+    private  get_kernel_name_from_magic(code: string): string | undefined {
+        // get first line which must be a magic like %%kernel xeus-python
+        const firstLine = code.split('\n')[0].trim();
+        if(!firstLine.startsWith('%%kernel')) {
+            return undefined;
+        }
+        try {
+            const  kernelName = firstLine.split(' ')[1];
+            return kernelName;
+        }
+        catch (e) {           
+            return undefined;
+        }
+    }
+
+    private _replace_code_in_msg(msg: KernelMessage.IMessage,newCode: string) : KernelMessage.IMessage {
+        return {
+            ...msg,
+            content: {
+                ...msg.content,
+                code: newCode,
+            } as any
+        } as KernelMessage.IMessage;
+    }   
+    private _remove_kernel_magic(msg: KernelMessage.IMessage) : KernelMessage.IMessage {
+        const code = (msg.content as any).code as string;
+        return this._replace_code_in_msg(msg, code.split('\n').slice(1).join('\n'));
+    }
 
     private async _execute(msg: KernelMessage.IMessage): Promise<void> {
 
@@ -210,6 +295,8 @@ export class PolyglottKernel implements IKernel {
         const executeMsg = msg as KernelMessage.IExecuteRequestMsg;
         
         this._parentHeader = executeMsg.header;
+
+    
         
         
         const content = executeMsg.content as KernelMessage.IExecuteRequestMsg['content'];
@@ -222,64 +309,64 @@ export class PolyglottKernel implements IKernel {
             this._history.push([0, 0, content.code]);
         }
         const code = content.code;
-        
-        // get first line which must be a magic like %%start-kernel xeus-python
-        const firstLine = code.split('\n')[0].trim();
+        const kernelName = this.get_kernel_name_from_magic(code);
+        if(!kernelName) {
 
+            const availableKernels = Array.from(this.kernelSpecs.factories.keys()).join(', ');
 
-        const any_magic = firstLine.startsWith('%%');
-        if(!any_magic) {
-           this.publishExecuteError({
-                ename: 'KernelNotFound',
-                evalue: `No magic found in first line of code, expected something like %%start-kernel xpython, but got: ${firstLine}`,
+            this.publishExecuteError({
+                ename: 'InvalidMagic',
+                evalue: `No magic found in first line of code, expected  %%kernel <KERNEL_NAME>, but got: ${code.split('\n')[0].trim()} \nAvailable kernels are: ${availableKernels}`,
                 traceback: [],
             }, msg.header);
             return;
         }
-
-        const [ magic, kernelName] = firstLine.split(' ');
-        console.log('magic', magic, 'kernelName', kernelName);
-        const boot_kernel = magic === '%%start-kernel';
         let kernel = await this.getKernelByName(kernelName);
-        console.log('got kernel', kernel,'boot_kernel', boot_kernel);
         if(!kernel) {
+            const availableKernels = Array.from(this.kernelSpecs.factories.keys()).join(', ');
             this.publishExecuteError({
                 ename: 'KernelNotFound',
-                evalue: `Kernel ${kernelName} not found`,
+                evalue: `Kernel ${kernelName} not found, available kernels are: ${availableKernels}`,
                 traceback: [],
             }, msg.header);
             return;
         }
 
         console.log(`Forwarding code to kernel ${kernelName}`, code);
-        // remove first line from code
-        const codeWithoutMagic = code.split('\n').slice(1).join('\n');
-        // modify the original message to have the code without the magic
-        const newMsg = {
-            ...msg,
-            content: {
-                ...content,
-                code: codeWithoutMagic,
-            } as KernelMessage.IExecuteRequestMsg['content']
-        } as KernelMessage.IMessage;
-
+        const newMsg = this._remove_kernel_magic(msg);
         await kernel.handleMessage(newMsg);
         
     }
 
     private async _kernelInfo(parent: KernelMessage.IMessage): Promise<void> {
-        const content_raw = {
+        // const content_raw = {
+        //     implementation: 'polyglott',
+        //     implementation_version: '0.1.0',
+        //     language_info: {
+        //         name: 'polyglott',
+        //         version: '0.1.0',
+        //         mimetype: 'text/x-polyglott',
+        //         file_extension: '.pg',
+        //     },
+        //     banner: 'Polyglott Kernel',
+        // }
+        // const content = content_raw as KernelMessage.IInfoReplyMsg['content'];
+
+        const content: KernelMessage.IInfoReplyMsg['content'] = {
             implementation: 'polyglott',
             implementation_version: '0.1.0',
             language_info: {
-                name: 'text',
+                name: 'polyglott',
                 version: '0.1.0',
-                mimetype: 'text/plain',
-                file_extension: '.txt',
+                mimetype: 'application/x-polyglott',
+                file_extension: '.pg',
             },
             banner: 'Polyglott Kernel',
+            protocol_version: '5.3',
+            help_links: [],
+            status: 'ok',
         }
-        const content = content_raw as KernelMessage.IInfoReplyMsg['content'];
+   
 
         const message = KernelMessage.createMessage<KernelMessage.IInfoReplyMsg>({
             msgType: 'kernel_info_reply',
@@ -290,6 +377,114 @@ export class PolyglottKernel implements IKernel {
         });
 
         this._sendMessage(message);
+    }
+
+
+
+    private async _isComplete(msg: KernelMessage.IMessage): Promise<void> {
+        const code = (msg as KernelMessage.IIsCompleteRequestMsg).content.code;
+        const kernelName = this.get_kernel_name_from_magic(code);
+        let reply_content: KernelMessage.IIsCompleteReplyMsg['content'] = {
+            status: 'invalid',
+        };
+        let reply_msg = KernelMessage.createMessage<KernelMessage.IIsCompleteReplyMsg>({
+            msgType: 'is_complete_reply',
+            channel: 'shell',
+            session: msg.header.session,
+            parentHeader: msg.header as KernelMessage.IHeader<'is_complete_request'>,
+            content: reply_content,
+        });
+        if(!kernelName) {
+            // send response with "invalid" status
+            reply_msg.content.status = 'invalid';
+            this._sendMessage(reply_msg);
+            return;
+        }
+
+        // remove magic from code
+        const codeWithoutMagic = code.split('\n').slice(1).join('\n');
+        if(codeWithoutMagic.trim().length === 0) {
+            // if there is no code after the magic, we consider it complete
+            reply_content.status = 'complete';
+            this._sendMessage(reply_msg);
+            return;
+        }
+        else {
+            const kernel = await this.getKernelByName(kernelName);
+            const newMsg = this._remove_kernel_magic(msg);
+
+            // send message to kernel and wait for response
+            if(kernel) {
+                await kernel.handleMessage(newMsg);
+            }
+            this._sendMessage(reply_msg);
+            return;
+        }
+    }
+
+    
+    private async _complete(msg:  KernelMessage.IMessage): Promise<void> {
+        const code = (msg as KernelMessage.ICompleteRequestMsg).content.code;
+        const cursor_pos = (msg as KernelMessage.ICompleteRequestMsg).content.cursor_pos;
+        const kernelName = this.get_kernel_name_from_magic(code);
+        let reply_content: KernelMessage.ICompleteReplyMsg['content'] = {
+            status: 'ok',
+            matches: [],
+            cursor_start: cursor_pos,
+            cursor_end: cursor_pos,
+            metadata: {},
+        };
+        let reply_msg = KernelMessage.createMessage<KernelMessage.ICompleteReplyMsg>({
+            msgType: 'complete_reply',
+            channel: 'shell',
+            session: msg.header.session,
+            content: reply_content,
+        });
+        if(!kernelName) {
+            // send response with "invalid" status
+            // resolve the _completeReplyPromise 
+            this._completeReplyPromise.resolve();
+            this._sendMessage(reply_msg);
+            return;
+        }
+
+
+        const kernel = await this.getKernelByName(kernelName);
+        const newMsg = this._remove_kernel_magic(msg);
+
+        // modify the cursor position in the message to account for the removed magic line
+        const codeWithoutMagic = (newMsg.content as any).code as string;
+        const magicSize = code.length - codeWithoutMagic.length;
+        this._completeReplyCurserOffset = magicSize;
+        const newCursorPos = cursor_pos - magicSize;
+        (newMsg.content as any).cursor_pos = newCursorPos;
+
+        console.log("orginal msg", msg);
+        console.log("new msg", newMsg);
+
+        // send message to kernel and wait for response
+        if(kernel) {
+            await kernel.handleMessage(newMsg);
+        }
+        this._sendMessage(reply_msg);
+        return;
+        
+    }
+    async commMsg(msg: KernelMessage.ICommMsgMsg): Promise<void> {
+        console.log('Received comm_msg', msg);
+        const commId = msg.content.comm_id;
+        const kernelName = this.commIdToKernelName.get(commId);
+        if(!kernelName) {
+            console.warn(`Received comm_msg for unknown comm_id ${commId}`);
+            return;
+        }
+        const kernel = await this.getKernelByName(kernelName);
+        if(!kernel) {
+            console.warn(`Received comm_msg for unknown kernel ${kernelName}`);
+            return;
+        }
+        await kernel.handleMessage(msg);
+    
     }
 
     async handleMessage(msg: KernelMessage.IMessage): Promise<void> {
@@ -312,21 +507,24 @@ export class PolyglottKernel implements IKernel {
             // case 'inspect_request':
             //     await this._inspect(msg);
             //     break;
-            // case 'is_complete_request':
-            //     await this._isCompleteRequest(msg);
-            //     break;
-            // case 'complete_request':
-            //     await this._complete(msg);
-            //     break;
+            case 'is_complete_request':
+                await this._isComplete(msg);
+                break;
+            case 'complete_request':
+            
+                this._completeReplyPromise  = new PromiseDelegate<void>();
+                this._complete(msg);
+                await this._completeReplyPromise.promise;
+                break;
             // case 'history_request':
             //     await this._historyRequest(msg);
             //     break;
             // case 'comm_open':
             //     await this.commOpen(msg as KernelMessage.ICommOpenMsg);
             //     break;
-            // case 'comm_msg':
-            //     await this.commMsg(msg as KernelMessage.ICommMsgMsg);
-            //     break;
+            case 'comm_msg':
+                await this.commMsg(msg as KernelMessage.ICommMsgMsg);
+                break;
             // case 'comm_close':
             //     await this.commClose(msg as KernelMessage.ICommCloseMsg);
             //     break;
@@ -347,6 +545,9 @@ export class PolyglottKernel implements IKernel {
     // map of already started kernels, keyed by kernel name
     protected startedKernels: Map<string, IKernel> = new Map();
 
+    // map from com-id to kernel name, we use this to forward comm messages to the correct kernel
+    private commIdToKernelName: Map<string, string> = new Map();
+
     private _sendMessage: IKernel.SendMessage;
     private _parentHeader: KernelMessage.IHeader<KernelMessage.MessageType> | undefined = undefined;
     private _parent: KernelMessage.IMessage | undefined = undefined;
@@ -359,5 +560,15 @@ export class PolyglottKernel implements IKernel {
     // undefined;
     // private _parent: KernelMessage.IMessage | undefined = undefined;
 
+
+    // when we send a complete-request to the sub-kernel, we remove the 
+    // magic from the code and need to adjust the cursor position accordingly.
+    // But we also need to make sure that when the sub kernel sends
+    // a reply,we need to adjust the cursor position in the reply to account for the removed magic line
+    private _completeReplyCurserOffset : number = 0;
+
+    // we want only one complete request / reply at a time
+    // so we store a promise we can await in the complete handler, and we resolve it when we receive the reply from the sub-kernel
+    private _completeReplyPromise  = new PromiseDelegate<void>();
 
 }
