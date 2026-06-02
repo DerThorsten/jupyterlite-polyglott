@@ -9,6 +9,7 @@ import { PromiseDelegate } from '@lumino/coreutils';
 import type { ISignal } from '@lumino/signaling';
 import { Signal } from '@lumino/signaling';
 
+import {replace_code_in_msg} from './message_utils';
 
 
 // a map from kernel-name (string)
@@ -107,37 +108,14 @@ export class PolyglottKernel implements IKernel {
         this._sendMessage(message);
     }
 
-    /**
-     * Send an 'idle' status message.
-     *
-     * @param parent The parent message
-     */
-    private _idle(parent: KernelMessage.IMessage): void {
+    private _send_status(parent: KernelMessage.IMessage, status: 'idle' | 'busy'): void {
         const message = KernelMessage.createMessage<KernelMessage.IStatusMsg>({
             msgType: 'status',
             session: parent.header.session,
             parentHeader: parent.header,
             channel: 'iopub',
             content: {
-                execution_state: 'idle',
-            },
-        });
-        this._sendMessage(message);
-    }
-
-    /**
-     * Send a 'busy' status message.
-     *
-     * @param parent The parent message.
-     */
-    private _busy(parent: KernelMessage.IMessage): void {
-        const message = KernelMessage.createMessage<KernelMessage.IStatusMsg>({
-            msgType: 'status',
-            session: parent.header.session,
-            parentHeader: parent.header,
-            channel: 'iopub',
-            content: {
-                execution_state: 'busy',
+                execution_state: status,
             },
         });
         this._sendMessage(message);
@@ -264,28 +242,6 @@ export class PolyglottKernel implements IKernel {
         }
     }
 
-
-    // /**
-    //  * Send an `execute_input` message.
-    //  *
-    //  * @param msg The parent message.
-    //  */
-    // private _executeInput(msg: KernelMessage.IMessage): void {
-    //     const parent = msg as KernelMessage.IExecuteInputMsg;
-    //     const code = parent.content.code;
-    //     const message = KernelMessage.createMessage<KernelMessage.IExecuteInputMsg>({
-    //     msgType: 'execute_input',
-    //     parentHeader: parent.header,
-    //     channel: 'iopub',
-    //     session: msg.header.session,
-    //     content: {
-    //         code,
-    //         execution_count: this._executionCount,
-    //     },
-    //     });
-    //     this._sendMessage(message);
-    // }
-
     private  get_kernel_name_from_magic(code: string): string | undefined {
         // get first line which must be a magic like %%kernel xeus-python
         const firstLine = code.split('\n')[0].trim();
@@ -301,18 +257,9 @@ export class PolyglottKernel implements IKernel {
         }
     }
 
-    private _replace_code_in_msg(msg: KernelMessage.IMessage,newCode: string) : KernelMessage.IMessage {
-        return {
-            ...msg,
-            content: {
-                ...msg.content,
-                code: newCode,
-            } as any
-        } as KernelMessage.IMessage;
-    }   
     private _remove_kernel_magic(msg: KernelMessage.IMessage) : KernelMessage.IMessage {
         const code = (msg.content as any).code as string;
-        return this._replace_code_in_msg(msg, code.split('\n').slice(1).join('\n'));
+        return replace_code_in_msg(msg, code.split('\n').slice(1).join('\n'));
     }
 
     private async _execute(msg: KernelMessage.IMessage): Promise<void> {
@@ -604,7 +551,7 @@ export class PolyglottKernel implements IKernel {
 
 
     async handleMessage(msg: KernelMessage.IMessage): Promise<void> {
-        this._busy(msg);
+        this._send_status(msg, 'busy');
 
         this._parent = msg;
 
@@ -654,7 +601,7 @@ export class PolyglottKernel implements IKernel {
                 break;
         }
 
-        this._idle(msg);
+        this._send_status(msg, 'idle');
     }
 
 
