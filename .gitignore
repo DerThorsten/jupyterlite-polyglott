@@ -126,3 +126,8 @@ dmypy.json
 # JupyterLite
 .jupyterlite.doit.db
 _output/
+
+
+deploy/
+wasm-kernels/
+jupyterlite_polyglott/
