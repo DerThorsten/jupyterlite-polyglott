@@ -18,7 +18,9 @@ import {replace_code_in_msg} from './message_utils';
 export var kernelInfos: { [key: string]: KernelMessage.IInfoReply} = {};
 
 
-
+async function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 export class PolyglottKernel implements IKernel {
 
@@ -166,26 +168,7 @@ export class PolyglottKernel implements IKernel {
 
 
             if(this._commInfoRepliesContent.length === this.startedKernels.size) {
-                let aggregatedContent: KernelMessage.ICommInfoReply= {
-                    comms: {},
-                    status: 'ok',
-                };
-                for(const replyContent of this._commInfoRepliesContent) {
-                    aggregatedContent.comms = {
-                        ...aggregatedContent.comms,
-                        ...replyContent.comms,
-                    }
-                }
-                const reply_msg = KernelMessage.createMessage<KernelMessage.ICommInfoReplyMsg>({
-                    msgType: 'comm_info_reply',
-                    channel: 'shell',
-                    session: msg.header.session,
-                    parentHeader: msg.header as KernelMessage.IHeader<'comm_info_request'>,
-                    content: aggregatedContent,
-                });
-                this._sendMessage(reply_msg);
                 this._commInfoReplyPromise.resolve();
-                return;
             }
         }
 
@@ -547,8 +530,27 @@ export class PolyglottKernel implements IKernel {
         console.log(`Received comm_close with comm_id ${commId}`);
         this.commIdToKernelName.delete(commId);
     }
-
-
+    
+    agglomerateAndSendCommInfoReplies(parent: KernelMessage.IMessage): void {
+        let aggregatedContent: KernelMessage.ICommInfoReply= {
+            comms: {},
+            status: 'ok',
+        };
+        for(const replyContent of this._commInfoRepliesContent) {
+            aggregatedContent.comms = {
+                ...aggregatedContent.comms,
+                ...replyContent.comms,
+            }
+        }
+        const reply_msg = KernelMessage.createMessage<KernelMessage.ICommInfoReplyMsg>({
+            msgType: 'comm_info_reply',
+            channel: 'shell',
+            session: parent.header.session,
+            parentHeader: parent.header as KernelMessage.IHeader<'comm_info_request'>,
+            content: aggregatedContent,
+        });
+        this._sendMessage(reply_msg);
+    }
 
     async handleMessage(msg: KernelMessage.IMessage): Promise<void> {
         this._send_status(msg, 'busy');
@@ -591,7 +593,11 @@ export class PolyglottKernel implements IKernel {
                 // do we have a started kernel at all
                     this._commInfoReplyPromise  = new PromiseDelegate<void>();
                     await this.commInfo(msg as KernelMessage.ICommInfoRequestMsg);
-                    await this._commInfoReplyPromise.promise;
+                    console.log('Waiting for comm_info_reply from all kernels');
+                    await Promise.race([this._commInfoReplyPromise.promise, delay(500)]);
+                    console.log(`Received comm_info_reply from #${this._commInfoRepliesContent.length} kernels, sending aggregated reply to client`);
+                    this.agglomerateAndSendCommInfoReplies(msg);
+
                 break;
             case 'comm_close':
                 await this.commClose(msg as KernelMessage.ICommCloseMsg);
