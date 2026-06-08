@@ -37,6 +37,17 @@ jobs:
         jlpm run build
         python -m pip install . -v
 
+        echo "looking at this dir"
+        ls -al
+
+        echo "lookimng at the dir jupyterlite_echo_kernel"
+        ls -al jupyterlite_echo_kernel
+
+
+        echo "lookimng at the dir jupyterlite_echo_kernel/labextension"
+        ls -al jupyterlite_echo_kernel/labextension
+
+
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "@jupyterlite/echo-kernel.*OK"
 
