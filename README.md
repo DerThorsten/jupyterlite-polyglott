@@ -4,8 +4,6 @@
 
 A multi language polyglott meta kernel for JupyterLite
 
-
-
 ## Requirements
 
 - JupyterLite >= 0.6.0
