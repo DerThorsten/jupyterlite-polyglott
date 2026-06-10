@@ -23,7 +23,7 @@
     "style": "style/index.css",
     "repository": {
         "type": "git",
-        "url": "https://github.com/jupyterlite/echo-kernel.git"
+        "url": "https://github.com/DerThorsten/jupyterlite-polyglott.git"
     },
     "scripts": {
         "build": "jlpm build:lib && jlpm build:labextension:dev",
