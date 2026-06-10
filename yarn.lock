@@ -1674,9 +1674,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jupyterlite/echo-kernel@workspace:.":
+"@jupyterlite/polyglott@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@jupyterlite/echo-kernel@workspace:."
+  resolution: "@jupyterlite/polyglott@workspace:."
   dependencies:
     "@codemirror/language": ^6.10.0
     "@codemirror/language-data": ^6.5.1
