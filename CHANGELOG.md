@@ -1,5 +1,5 @@
 # Changelog
 
 <!-- <START NEW CHANGELOG ENTRY> -->
-
-- Inital version of this project
+ - inital version of the project
+<!-- <END NEW CHANGELOG ENTRY> -->
