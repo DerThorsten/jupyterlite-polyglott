@@ -95,8 +95,14 @@ jobs:
       - name: Create wasm prefix
         shell: bash -l {0}
         run: |
-           WASM_PREFIX_DIR=$HOME/wasm-prefix
-           $MAMBA_EXE create -p $WASM_PREFIX_DIR  -c https://prefix.dev/emscripten-forge-4x -c conda-forge -f .github/wasm-environment.yml --yes
+          WASM_PREFIX_DIR=$HOME/wasm-prefix
+          $MAMBA_EXE create \
+            -p $WASM_PREFIX_DIR  \
+            -c https://prefix.dev/emscripten-forge-4x \
+            -c conda-forge \
+            -f .github/wasm-environment.yml \
+            --yes \
+            --platform=emscripten-wasm32 
  
       - name: Build the JupyterLite site
         shell: bash -l {0}
