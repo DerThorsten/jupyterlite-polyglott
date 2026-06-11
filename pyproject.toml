@@ -37,8 +37,8 @@ artifacts = ["jupyterlite_polyglott/labextension"]
 exclude = [".github", "binder"]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"jupyterlite_polyglott/labextension" = "share/jupyter/labextensions/@jupyterlite/polyglott"
-"install.json" = "share/jupyter/labextensions/@jupyterlite/polyglott/install.json"
+"jupyterlite_polyglott/labextension" = "share/jupyter/labextensions/@derthorsten/jupyterlite-polyglott"
+"install.json" = "share/jupyter/labextensions/@derthorsten/jupyterlite-polyglott/install.json"
 
 [tool.hatch.build.hooks.version]
 path = "jupyterlite_polyglott/_version.py"

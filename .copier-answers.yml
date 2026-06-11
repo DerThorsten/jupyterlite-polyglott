@@ -6,7 +6,7 @@ author_name: JupyterLite Contributors
 has_binder: false
 has_settings: false
 kind: frontend
-labextension_name: '@jupyterlite/polyglott'
+labextension_name: '@derthorsten/jupyterlite-polyglott'
 project_short_description: Polyglott kernel for JupyterLite
 python_name: jupyterlite_polyglott
 repository: https://github.com/DerThorsten/jupyterlite-polyglott  

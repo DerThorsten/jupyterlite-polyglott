@@ -15,7 +15,7 @@ import logo64 from '../style/logo-64x64.png';
  * A plugin to register the echo kernel.
  */
 const kernel: JupyterFrontEndPlugin<void> = {
-  id: '@jupyterlite/polyglott:kernel',
+  id: '@derthorsten/jupyterlite-polyglott:kernel',
   autoStart: true,
   requires: [IKernelSpecs],
   activate: (app: JupyterFrontEnd, kernelspecs: IKernelSpecs) => {
